@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>CSS Inspector</title>
+    <link rel="stylesheet" href="public/style.css">
+</head>
+<body>
+    <div class="container">
+
+
+        <main>
+            <form class="input-fields" action="/" method="post">
+                <h1>
+                    Input Required Paths
+                </h1>
+                <input name="cssPath" type="text" placeholder="Enter CSS root path...">
+                <input name="htmlPath" type="text" placeholder="Enter HTML module path...">
+                <input type="submit" value="Analyze">
+            </form>
+
+        {{if .}}
+            <ul>
+            {{range .HTMLFiles}}
+                <li class="file-item">
+                    <img src="public/html.png" alt="">
+                    <span class="file-name">{{.Name}}</span>
+                    <div class="class-list">
+                    {{range $Name,$Class := .Classes}}
+                        <span class="class-item">
+                            {{$Name}} <span class="class-item-count">{{$Class.Count}}</span>
+                        </span>
+                    {{end}}
+                    </div>
+                </li>
+            {{end}}
+            </ul>
+
+        {{end}}
+        </main>
+    </div>
+</body>
+</html>
