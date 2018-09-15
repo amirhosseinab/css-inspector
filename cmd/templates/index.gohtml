@@ -23,22 +23,36 @@
             </form>
 
         {{if .}}
-            <ul>
-            {{range .HTMLFiles}}
-                <li class="file-item">
-                    <img src="public/html.png" alt="">
-                    <span class="file-name">{{.Name}}</span>
-                    <div class="class-list">
-                    {{range $Name,$Class := .Classes}}
-                        <span class="class-item">
+            <div class="css-files-section">
+                <h1 class="section-header">Related CSS Files</h1>
+                <ul>
+                {{range .CSSFiles}}
+                    <li class="css-file-item">
+                        <span class="file-name">{{.Name}}</span>
+                    </li>
+                {{end}}
+                </ul>
+            </div>
+            <div class="html-files-section">
+                <h1 class="section-header">HTML Files in This Module</h1>
+                <ul>
+                {{range .HTMLFiles}}
+                    <li class="file-item">
+                        <img src="public/html.png" alt="">
+                        <span class="file-name">{{.Name}}</span>
+                    {{if .HasInlineStyle}}<span class="alert red">Has Inline Style</span>{{end}}
+                    {{if .HasStyleTag}}<span class="alert orange">Has Style Tag</span>{{end}}
+                        <div class="class-list">
+                        {{range $Name,$Class := .Classes}}
+                            <span class="class-item">
                             {{$Name}} <span class="class-item-count">{{$Class.Count}}</span>
                         </span>
-                    {{end}}
-                    </div>
-                </li>
-            {{end}}
-            </ul>
-
+                        {{end}}
+                        </div>
+                    </li>
+                {{end}}
+                </ul>
+            </div>
         {{end}}
         </main>
     </div>

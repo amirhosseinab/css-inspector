@@ -15,16 +15,25 @@ import (
 )
 
 type (
-	File struct {
+	HTMLFile struct {
+		Path           string
+		Name           string
+		Content        string
+		Classes        Classes
+		HasInlineStyle bool
+		HasStyleTag    bool
+	}
+
+	CSSFile struct {
 		Path    string
 		Name    string
 		Content string
-		Classes Classes
+		Classes map[string]interface{}
 	}
 
-	Classes map[string]*Class
+	Classes map[string]*HTMLClassInfo
 
-	Class struct {
+	HTMLClassInfo struct {
 		Count   int
 		CSSFile []string
 	}
@@ -38,7 +47,7 @@ func main() {
 	http.ListenAndServe(":3035", h)
 }
 
-func IndexHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func IndexHandler(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	ShowIndexTemplate(w, nil)
 }
 
@@ -46,12 +55,12 @@ func AnalyzeHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
 	cssPath := r.PostFormValue("cssPath")
 	htmlPath := r.PostFormValue("htmlPath")
 
-	htmlFiles := GetFiles(htmlPath, ".html")
-	cssFiles := GetFiles(cssPath, ".css")
+	htmlFiles := GetHTMLFiles(htmlPath)
+	cssFiles := GetCSSFiles(cssPath)
 
 	data := struct {
-		HTMLFiles []File
-		CSSFiles  []File
+		HTMLFiles []HTMLFile
+		CSSFiles  []CSSFile
 	}{
 		HTMLFiles: htmlFiles,
 		CSSFiles:  cssFiles,
@@ -69,19 +78,20 @@ func ShowIndexTemplate(w io.Writer, data interface{}) {
 	}
 }
 
-func GetFiles(path, extension string) []File {
-	var files []File
+func GetCSSFiles(path string) []CSSFile {
+	var files []CSSFile
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return files
 	}
+
 	filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
-		if !info.IsDir() && strings.HasSuffix(info.Name(), extension) {
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".css") {
 			c := GetFileContent(path)
-			f := File{
+			f := CSSFile{
 				Path:    path,
 				Name:    info.Name(),
 				Content: c,
-				Classes: ExtractClasses(c),
+				Classes: ExtractClassesFromCSS(c),
 			}
 			files = append(files, f)
 		}
@@ -91,13 +101,87 @@ func GetFiles(path, extension string) []File {
 	return files
 }
 
+func ExtractClassesFromCSS(content string) map[string]interface{} {
+	var classes map[string]interface{}
+	classes = make(map[string]interface{})
+
+	r, err := regexp.Compile("\\.[\\w\\-0-9\\s\\.:,\\*\\>\\(\\)]+{")
+	if err != nil {
+		log.Fatal(err)
+	}
+	cr, err := regexp.Compile("\\.[\\w\\-0-9]+")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	items := r.FindAllString(content, -1)
+	for _, item := range items {
+		refinedItem := item
+		refinedItem = strings.Trim(refinedItem, "{")
+		refinedItem = strings.Trim(refinedItem, " ")
+		subItem := cr.FindAllString(refinedItem, -1)
+		for _, class := range subItem {
+			name := strings.Trim(class, ".")
+			if _, ok := classes[name]; !ok {
+				classes[name] = nil
+			}
+		}
+	}
+
+	return classes
+}
+
+func GetHTMLFiles(path string) []HTMLFile {
+	var files []HTMLFile
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return files
+	}
+	filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".html") {
+			c := GetFileContent(path)
+			f := HTMLFile{
+
+				Path:           path,
+				Name:           info.Name(),
+				Content:        c,
+				Classes:        ExtractClassesFromHTML(c),
+				HasInlineStyle: CheckInlineStyle(c),
+				HasStyleTag:    CheckStyleTag(c),
+			}
+			files = append(files, f)
+		}
+		return nil
+	})
+
+	return files
+}
 
 func GetFileContent(path string) string {
 	b, _ := ioutil.ReadFile(path)
 	return string(b)
 }
 
-func ExtractClasses(content string) Classes {
+func CheckInlineStyle(content string) bool {
+	r, err := regexp.Compile("\\s+style\\s?=\\s?\"[\\w\\-\\:\\.0-9\\;\\s\\#\\!\\%\\,]+\"")
+	if err != nil {
+		log.Fatal(err)
+	}
+	inlineStyle := len(r.FindAllString(content, -1)) > 0
+
+	return inlineStyle
+}
+
+func CheckStyleTag(content string) bool {
+	r, err := regexp.Compile("\\s?<style\\s?>[\\w\\W]+</style\\s?>")
+	if err != nil {
+		log.Fatal(err)
+	}
+	styleTag := len(r.FindAllString(content, -1)) > 0
+	return styleTag
+
+}
+
+func ExtractClassesFromHTML(content string) Classes {
 	var classes Classes
 	classes = make(Classes)
 	r, err := regexp.Compile("\\s+class\\s?=\\s?\"[\\w\\-0-9\\s]+\"")
@@ -116,34 +200,10 @@ func ExtractClasses(content string) Classes {
 			if _, ok := classes[sc]; ok {
 				classes[sc].Count += 1
 			} else {
-				classes[sc] = &Class{Count: 1}
+				classes[sc] = &HTMLClassInfo{Count: 1}
 			}
 		}
 	}
 
 	return classes
-}
-
-func RefineClasses(classes []string) []string {
-	var result []string
-	for _, row := range classes {
-		c := row
-		c = strings.Trim(c, " ")
-		c = strings.Trim(c, "class=")
-		c = strings.Trim(c, "\"")
-
-		result = append(result, strings.Fields(c)...)
-	}
-	return result
-}
-
-func GetListOfHTMLFiles(htmlPath string) []string {
-	var files []string
-	filepath.Walk(htmlPath, func(path string, info os.FileInfo, err error) error {
-		if !info.IsDir() && strings.HasSuffix(info.Name(), ".html") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	return files
 }
