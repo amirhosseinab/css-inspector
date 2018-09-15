@@ -16,12 +16,20 @@ import (
 
 type (
 	HTMLFile struct {
-		Path           string
-		Name           string
-		Content        string
-		Classes        Classes
-		HasInlineStyle bool
-		HasStyleTag    bool
+		Path            string
+		Name            string
+		Content         string
+		Classes         Classes
+		HasInlineStyle  bool
+		HasStyleTag     bool
+		RelatedCSSFiles []string
+	}
+
+	Classes map[string]*HTMLClassInfo
+
+	HTMLClassInfo struct {
+		Count    int
+		CSSFiles []string
 	}
 
 	CSSFile struct {
@@ -29,13 +37,6 @@ type (
 		Name    string
 		Content string
 		Classes map[string]interface{}
-	}
-
-	Classes map[string]*HTMLClassInfo
-
-	HTMLClassInfo struct {
-		Count   int
-		CSSFile []string
 	}
 )
 
@@ -58,8 +59,12 @@ func AnalyzeHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
 	htmlFiles := GetHTMLFiles(htmlPath)
 	cssFiles := GetCSSFiles(cssPath)
 
+	for _, hf := range htmlFiles {
+		hf.RelatedCSSFiles = FindRelatedCSSFiles(hf, &cssFiles)
+	}
+
 	data := struct {
-		HTMLFiles []HTMLFile
+		HTMLFiles []*HTMLFile
 		CSSFiles  []CSSFile
 	}{
 		HTMLFiles: htmlFiles,
@@ -67,6 +72,28 @@ func AnalyzeHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
 	}
 
 	ShowIndexTemplate(w, data)
+}
+
+func FindRelatedCSSFiles(htmlFile *HTMLFile, cssFiles *[]CSSFile) []string {
+	var result []string
+	var resultMap map[string]interface{}
+	resultMap = make(map[string]interface{})
+
+	for _, cf := range *cssFiles {
+		for htmlFileClass := range htmlFile.Classes {
+
+			htmlFile.Classes[htmlFileClass].CSSFiles = []string{}
+
+			if _, ok := cf.Classes[htmlFileClass]; ok {
+				if _, ok := resultMap[cf.Name]; !ok {
+					result = append(result, cf.Name)
+					resultMap[cf.Name] = nil
+				}
+			}
+		}
+	}
+
+	return result
 }
 
 func ShowIndexTemplate(w io.Writer, data interface{}) {
@@ -131,8 +158,8 @@ func ExtractClassesFromCSS(content string) map[string]interface{} {
 	return classes
 }
 
-func GetHTMLFiles(path string) []HTMLFile {
-	var files []HTMLFile
+func GetHTMLFiles(path string) []*HTMLFile {
+	var files []*HTMLFile
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return files
 	}
@@ -148,7 +175,7 @@ func GetHTMLFiles(path string) []HTMLFile {
 				HasInlineStyle: CheckInlineStyle(c),
 				HasStyleTag:    CheckStyleTag(c),
 			}
-			files = append(files, f)
+			files = append(files, &f)
 		}
 		return nil
 	})

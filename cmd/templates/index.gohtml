@@ -45,8 +45,18 @@
                         <div class="class-list">
                         {{range $Name,$Class := .Classes}}
                             <span class="class-item">
-                            {{$Name}} <span class="class-item-count">{{$Class.Count}}</span>
-                        </span>
+                                {{$Name}} <span class="class-item-count">{{$Class.Count}}</span>
+                                <div class="info css-file-box">
+                                {{range $Class.CSSFiles}}
+                                    <span class="info css-file-name">{{.}}</span>
+                                {{end}}
+                                </div>
+                            </span>
+                        {{end}}
+                        {{range $Name := .RelatedCSSFiles}}
+                            <span class="css-file-item">
+                            {{$Name}}
+                            </span>
                         {{end}}
                         </div>
                     </li>
@@ -56,5 +66,19 @@
         {{end}}
         </main>
     </div>
+    <script>
+        var classItems = document.getElementsByClassName("class-item");
+        for (var i = 0; i < classItems.length; i++) {
+            +function (index) {
+                classItems[index].addEventListener("mouseenter", function (evt) {
+                    classItems[index].children[1].style.display = "inline-block";
+                });
+                classItems[index].addEventListener("mouseleave", function (evt) {
+                    classItems[index].children[1].style.display = "none";
+                });
+            }(i)
+        }
+
+    </script>
 </body>
 </html>
